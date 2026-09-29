@@ -1,125 +1,106 @@
-# 13. ログインビュー
+# 13. フォームと管理画面
 
-## コード
+基本編 03章の復習です。ビューを書く前に、フォームと管理画面を用意しておきます。
+
+## フォーム
 
 ```python
-def _get_safe_next_url(request):
-    """next パラメータが同じサイト内の URL なら返す。外部サイトなら None"""
-    next_url = request.POST.get("next") or request.GET.get("next")
-    if next_url and url_has_allowed_host_and_scheme(
-        url=next_url,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
-        return next_url
-    return None
+# accounts/forms.py
+from django import forms
+from django.contrib.auth.forms import (
+    AdminUserCreationForm,
+    UserChangeForm,
+    UserCreationForm,
+)
+
+from .models import CustomUser
 
 
-@require_http_methods(["GET", "POST"])
-def login_view(request):
-    if request.user.is_authenticated:
-        return redirect("accounts:home")
+class CustomUserCreationForm(UserCreationForm):
+    class Meta(UserCreationForm.Meta):
+        model = CustomUser
+        fields = ("username", "email", "nickname")
 
-    if request.method == "POST":
-        form = AuthenticationForm(request, data=request.POST)
-        if form.is_valid():
-            login(request, form.get_user())
-            messages.success(request, "ログインしました。")
-            return redirect(
-                _get_safe_next_url(request) or resolve_url(settings.LOGIN_REDIRECT_URL)
-            )
-    else:
-        form = AuthenticationForm(request)
 
-    return render(
-        request,
-        "accounts/login.html",
-        {"form": form, "next": _get_safe_next_url(request) or ""},
+class CustomAdminUserCreationForm(AdminUserCreationForm):
+    """管理画面のユーザー追加用（Django 5.1+ の usable_password 項目を含む）"""
+
+    class Meta(AdminUserCreationForm.Meta):
+        model = CustomUser
+        fields = ("username", "email", "nickname")
+
+
+class CustomUserChangeForm(UserChangeForm):
+    class Meta(UserChangeForm.Meta):
+        model = CustomUser
+        fields = ("username", "email", "nickname", "birth_date")
+```
+
+| フォーム | 使う場所 |
+| --- | --- |
+| `CustomUserCreationForm` | サイトの新規登録画面（08章） |
+| `CustomAdminUserCreationForm` | 管理画面のユーザー追加 |
+| `CustomUserChangeForm` | 管理画面のユーザー編集 |
+
+09章で、利用者が自分の情報を編集するための `ProfileForm` を追加します。
+
+> **⚠️ `add_form` に使うフォームに注意**
+> Django 5.1 以降、管理画面のユーザー追加画面には `usable_password` という項目があります。この項目を持っているのは `AdminUserCreationForm` だけです。
+> `UserCreationForm` を継承したフォームを `add_form` に指定すると、追加画面を開いたときに次のエラーになります。
+>
+> ```
+> FieldError: Unknown field(s) (usable_password) specified for CustomUser.
+> ```
+>
+> `manage.py check` では見つからず、画面を開いて初めて分かるので注意してください。
+
+## 管理画面
+
+```python
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+
+from .forms import CustomAdminUserCreationForm, CustomUserChangeForm
+from .models import CustomUser
+
+
+@admin.register(CustomUser)
+class CustomUserAdmin(UserAdmin):
+    add_form = CustomAdminUserCreationForm
+    form = CustomUserChangeForm
+    model = CustomUser
+    list_display = ("username", "email", "nickname", "is_staff")
+
+    # 編集画面に追加項目を表示
+    fieldsets = UserAdmin.fieldsets + (
+        ("追加情報", {"fields": ("nickname", "birth_date")}),
+    )
+    # 追加画面に追加項目を表示
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ("追加情報", {"fields": ("email", "nickname")}),
     )
 ```
 
-## AuthenticationForm
-
-`AuthenticationForm` は、ユーザー名とパスワードの確認を行うフォームです。内部で `authenticate()` を呼び、ユーザーが存在してパスワードが合っていて、`is_active` が `True` のときだけ `is_valid()` が `True` になります。
-
-ほかのフォームと引数の渡し方が違うので注意してください。
-
-```python
-form = AuthenticationForm(request, data=request.POST)  # 1 つ目は request
-```
-
-- 1 つ目の引数は `request` です。`AuthenticationForm(request.POST)` と書くと、POST のデータが `request` として扱われ、正しく動きません。
-- 送信内容は `data=` キーワードで渡します。
-- 検証に成功したら、`form.get_user()` でログインするユーザーを取り出します。
-
-### authenticate() を直接使う場合
-
-フォームを使わずに書くと、次のようになります。
-
-```python
-from django.contrib.auth import authenticate, login
-
-user = authenticate(request, username=username, password=password)
-if user is not None:
-    login(request, user)
-```
-
-ただし、入力値のチェック、エラーメッセージ、`is_active` の確認などを自分で書く必要があります。特別な理由がなければ `AuthenticationForm` を使います。
-
-## login() がしていること
-
-- セッションにユーザーの ID と、使った認証バックエンドを保存する
-- **セッション ID を作り直す**: ログイン前のセッション ID を攻撃者が知っていても、ログイン後には使えなくなります（セッション固定攻撃の対策）
-- CSRF トークンを作り直す
-- `user_logged_in` シグナルを送り、`last_login` を更新する
-
-## next パラメータとオープンリダイレクト
-
-`@login_required` で飛ばされてきたとき、URL は `/login/?next=/profile/` のようになります。ログイン後は `next` の URL へ戻すのが親切です。
-
-しかし、`next` の値をそのまま `redirect()` に渡してはいけません。
-
-```python
-# ❌ 危険
-return redirect(request.GET.get("next"))
-```
-
-次のようなリンクを踏まされると、本物のサイトでログインしたあと、偽サイトへ飛ばされてしまいます（**オープンリダイレクト**）。
-
-```
-https://本物のサイト/login/?next=https://偽サイト/
-```
-
-利用者は「本物のサイトでログインした」と思っているので、偽サイトで「もう一度パスワードを入力してください」と表示されると信じてしまいます。
-
-### url_has_allowed_host_and_scheme
-
-`url_has_allowed_host_and_scheme()` は、URL が許可したホストのものかどうかを確かめます。`LoginView` も内部で同じ関数を使っています。
-
-| `next` の値 | 結果 |
+| 属性 | 使われる画面 |
 | --- | --- |
-| `/profile/` | ✅ 同じサイト内 |
-| `https://evil.example.com/` | ❌ 別のホスト |
-| `//evil.example.com/` | ❌ `https:` を省略した外部 URL |
-| `javascript:alert(1)` | ❌ 許可していないスキーム |
+| `add_form` / `add_fieldsets` | ユーザー追加 |
+| `form` / `fieldsets` | ユーザー編集 |
 
-`require_https=request.is_secure()` を指定すると、HTTPS のページからは HTTPS の URL にしか移動しません。
+`fieldsets` に書いていない項目は表示されません。逆に、標準の `fieldsets` にすでにある項目（`email` など）を編集画面の `fieldsets` に書き足すと、重複エラー（`admin.E012`）になります。
 
-### テンプレートへ next を渡す
+## 動作確認
 
-GET で `?next=/profile/` を受け取ったら、フォームの hidden 項目に入れて POST でも送られるようにします。
-
-```html
-<input type="hidden" name="next" value="{{ next }}">
+```bash
+python manage.py createsuperuser
+python manage.py runserver
 ```
 
-テンプレートは基本編の `login.html` をそのまま使っています。`LoginView` はコンテキストに `next` を自動で入れてくれていましたが、FBV では `render()` に自分で渡します。
+`http://127.0.0.1:8000/admin/` を開き、ユーザーの追加と編集ができることを確認します。ここで作ったユーザーは、次章からのログイン確認にそのまま使えます。
 
-## redirect と resolve_url
+この時点で `/` を開くと 404 になります。ここから先が、この教材の本題です。
 
-```python
-return redirect(_get_safe_next_url(request) or resolve_url(settings.LOGIN_REDIRECT_URL))
-```
+## 復習ポイント
 
-`settings.LOGIN_REDIRECT_URL` には `"accounts:home"` のような URL 名が入っています。`resolve_url()` は URL 名でも URL でも受け取って、実際の URL に変換します。
-（`redirect()` も同じように URL 名を受け取れるので、この例では `resolve_url()` を省いても動きますが、「URL に変換してから使う」ことを明示しています。）
+- 標準のフォームは Meta を継承して `model` と `fields` を差し替える
+- 管理画面の `add_form` には `AdminUserCreationForm` 系を使う
+- `UserAdmin` を継承すると、パスワードのハッシュ化などをそのまま使える
