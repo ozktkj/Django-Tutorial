@@ -1,36 +1,70 @@
 # 【発展】関数ベースビューで作る カスタムユーザー＆ログイン/ログアウト
 
-基本編「カスタムユーザー＆ログイン/ログアウト チュートリアル」では、`LoginView` や `CreateView` などのクラスベースビュー（CBV）を使いました。
-この発展編では、同じ機能を**関数ベースビュー（FBV）**で書き直します。CBV が裏でやってくれていた処理を自分で書くことで、Django の認証の仕組みを深く理解するのが目的です。
+基本編で作ったものと同じ機能を、**関数ベースビュー（FBV）でゼロから作り直す**教材です。
+基本編の復習をしながら、`LoginView` などのクラスベースビュー（CBV）が裏でやっていた処理を自分の手で書いていきます。
 
-- 前提: 基本編を終えていること（カスタムユーザー・フォーム・管理画面・テストの基礎）
+- 対象: 基本編（カスタムユーザー＆ログイン/ログアウト チュートリアル）を終えた人
 - 環境: Python 3.10+ / Django 5.2 LTS
 - 完成コード: `sample/`（`python manage.py test` で 19 件のテストが通ることを確認済み）
 
+基本編のプロジェクトを書き換えるのではなく、**空のディレクトリから作り始めます**。
+モデル・フォーム・管理画面（01〜03章）は基本編とまったく同じものを作るので、思い出しながら手を動かしてください。各章の最後に「復習ポイント」として要点をまとめています。
+
 ## 目次
 
-| 章 | 内容 |
-| --- | --- |
-| [11. CBV と FBV](11_cbv_and_fbv.md) | 基本編との違い、書き換える範囲 |
-| [12. 新規登録ビュー](12_signup.md) | GET/POST の分岐、`form.is_valid()`、`login()` |
-| [13. ログインビュー](13_login.md) | `AuthenticationForm`、`next` の安全な扱い |
-| [14. ログアウトとアクセス制限](14_logout_and_access.md) | `@require_POST`、`@login_required`、メッセージ |
-| [15. プロフィール編集ビュー](15_profile_edit.md) | `instance=` を使った更新フォーム |
-| [16. テスト](16_testing.md) | FBV で自分で書いた部分のテスト |
+| 章 | 内容 | 基本編との関係 |
+| --- | --- | --- |
+| [11. プロジェクトの作成と設定](11_setup.md) | venv、`startproject`、`AUTH_USER_MODEL` | 復習 |
+| [12. カスタムユーザーモデル](12_custom_user.md) | `AbstractUser` の継承、マイグレーション | 復習 |
+| [13. フォームと管理画面](13_forms_admin.md) | 登録フォーム、`UserAdmin` の拡張 | 復習 |
+| [14. 最初のビュー: ホーム画面](14_home.md) | `render()`、URL、ベーステンプレート | **ここから FBV** |
+| [15. ログインビュー](15_login.md) | `AuthenticationForm`、`login()`、`next` の安全な扱い | 新規 |
+| [16. ログアウトとメッセージ](16_logout.md) | `@require_POST`、`logout()`、メッセージ | 新規 |
+| [17. アクセス制限](17_access_control.md) | `@login_required`、デコレーターの順番 | 新規 |
+| [18. 新規登録ビュー](18_signup.md) | GET/POST の分岐、PRG パターン | 新規 |
+| [19. プロフィール編集ビュー](19_profile_edit.md) | `instance=` を使った更新 | 発展 |
+| [20. テスト](20_testing.md) | 認証まわりのテスト | 復習＋新規 |
+| [21. 付録: CBV との対応](21_cbv_compare.md) | 基本編のコードとの比較、使い分け | まとめ |
 
-## 基本編からの変更点
+## 作る画面
 
-| ファイル | 変更 |
-| --- | --- |
-| `accounts/views.py` | **すべて関数ベースに書き直し** |
-| `accounts/urls.py` | 関数を登録する形に変更、`profile/` を追加 |
-| `accounts/forms.py` | `ProfileForm` を追加 |
-| `templates/base.html` | メッセージ表示とプロフィール編集リンクを追加 |
-| `templates/accounts/profile_edit.html` | 新規 |
-| `accounts/test_fbv.py` | 新規 |
-| `models.py` / `admin.py` / `settings.py` / その他のテンプレート | **変更なし** |
+| URL | 画面 | 作る章 |
+| --- | --- | --- |
+| `/` | ホーム（要ログイン） | 04・07 |
+| `/login/` | ログイン | 05 |
+| `/logout/` | ログアウト（POST のみ） | 06 |
+| `/signup/` | 新規登録 | 08 |
+| `/profile/` | プロフィール編集（要ログイン） | 09 |
+| `/admin/` | 管理画面 | 03 |
 
-基本編の `accounts/tests.py`（7 件）も、そのまま通ります。URL 名と画面の動きを変えていないので、ビューの書き方を変えても同じテストで確かめられます。
+各章の終わりで `runserver` を起動して動作を確認できるように、作る順番を組み立てています。
+
+## 完成時の構成
+
+```
+sample/
+├── manage.py
+├── requirements.txt
+├── config/
+│   ├── settings.py
+│   └── urls.py
+├── accounts/
+│   ├── admin.py
+│   ├── forms.py
+│   ├── models.py
+│   ├── tests.py
+│   ├── test_fbv.py
+│   ├── urls.py
+│   ├── views.py
+│   └── migrations/0001_initial.py
+└── templates/
+    ├── base.html
+    └── accounts/
+        ├── home.html
+        ├── login.html
+        ├── profile_edit.html
+        └── signup.html
+```
 
 ## サンプルの動かし方
 
@@ -43,11 +77,3 @@ python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
-
-| URL | 画面 |
-| --- | --- |
-| `/` | ホーム（要ログイン） |
-| `/signup/` | 新規登録 |
-| `/login/` | ログイン |
-| `/profile/` | プロフィール編集（要ログイン） |
-| `/admin/` | 管理画面 |
