@@ -11,12 +11,12 @@
 
 | 章 | 内容 |
 | --- | --- |
-| [01. CBV と FBV](01_cbv_and_fbv.md) | 基本編との違い、書き換える範囲 |
-| [02. 新規登録ビュー](02_signup.md) | GET/POST の分岐、`form.is_valid()`、`login()` |
-| [03. ログインビュー](03_login.md) | `AuthenticationForm`、`next` の安全な扱い |
-| [04. ログアウトとアクセス制限](04_logout_and_access.md) | `@require_POST`、`@login_required`、メッセージ |
-| [05. プロフィール編集ビュー](05_profile_edit.md) | `instance=` を使った更新フォーム |
-| [06. テスト](06_testing.md) | FBV で自分で書いた部分のテスト |
+| [11. CBV と FBV](11_cbv_and_fbv.md) | 基本編との違い、書き換える範囲 |
+| [12. 新規登録ビュー](12_signup.md) | GET/POST の分岐、`form.is_valid()`、`login()` |
+| [13. ログインビュー](13_login.md) | `AuthenticationForm`、`next` の安全な扱い |
+| [14. ログアウトとアクセス制限](14_logout_and_access.md) | `@require_POST`、`@login_required`、メッセージ |
+| [15. プロフィール編集ビュー](15_profile_edit.md) | `instance=` を使った更新フォーム |
+| [16. テスト](16_testing.md) | FBV で自分で書いた部分のテスト |
 
 ## 基本編からの変更点
 
