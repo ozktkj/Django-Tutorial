@@ -16,6 +16,7 @@
 | [04. 新規登録・ログイン・ログアウト](04_auth_views.md) | `LoginView` / `LogoutView` / `SignUpView` |
 | [05. テストの基礎](05_testing_basics.md) | テストの仕組み、`TestCase`、アサーション、テストクライアント |
 | [06. テストと動作確認](06_testing.md) | 認証フローのテスト、よくあるエラー |
+| [10. 発展：関数ベースビュー ](10_FBV_README.md)| FBV カスタムユーザー＆ログイン/ログアウト|
 
 ## 完成時の構成
 
